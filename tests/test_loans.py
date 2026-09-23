@@ -15,7 +15,7 @@ def test_cannot_issue_already_issued_copy(client):
     assert first.status_code == 201
     second = client.post("/loans", json={"copy_id": copy_["id"], "borrower_name": "Petr"})
     assert second.status_code == 400
-    assert "уже выдан" in second.json()["detail"]
+    assert "сначала оформите возврат" in second.json()["detail"]
 
 
 def test_can_issue_again_after_return(client):
