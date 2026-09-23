@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Библиотека</title>
+<style>
+body { font-family: sans-serif; max-width: 700px; margin: 40px auto; }
+input { display: block; width: 100%; margin: 6px 0; padding: 6px; box-sizing: border-box; }
+button { padding: 8px 16px; margin-top: 8px; cursor: pointer; }
+#app { display: none; }
+#error { color: red; }
+.tabs { margin-top: 20px; }
+.tabs button { margin-right: 6px; margin-top: 0; }
+.tabs button.active { background: #333; color: white; }
+table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; font-size: 14px; }
+th { background: #f0f0f0; }
+.add-box { border: 1px solid #ccc; padding: 12px; margin-top: 12px; display: none; }
+.add-box.open { display: block; }
+.add-error { color: red; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="auth">
+  <h2>Вход</h2>
+  <input id="login-username" placeholder="Логин">
+  <input id="login-password" type="password" placeholder="Пароль">
+  <button onclick="login()">Войти</button>
+
+  <h2>Регистрация</h2>
+  <input id="reg-username" placeholder="Логин">
+  <input id="reg-password" type="password" placeholder="Пароль">
+  <button onclick="register()">Зарегистрироваться</button>
+
+  <p id="error"></p>
+</div>
+
+<div id="app">
+  <h2>Добро пожаловать, <span id="whoami"></span></h2>
+  <button onclick="logout()">Выйти</button>
+
+  <div class="tabs" id="tabs"></div>
+  <button id="toggle-add-btn" onclick="toggleAddForm()">+ Добавить</button>
+  <div class="add-box" id="add-box">
+    <div id="add-fields"></div>
+    <p class="add-error" id="add-error"></p>
+    <button onclick="submitAdd()">Сохранить</button>
+  </div>
+  <table id="data-table">
+    <thead><tr id="table-head"></tr></thead>
+    <tbody id="table-body"></tbody>
+  </table>
+</div>
+
+<script>
+const API = "";
+
+const CATEGORIES = {
+  "Авторы": {
+    url: "/authors",
+    columns: ["id", "full_name", "bio"],
+    fields: [
+      { name: "full_name", label: "Имя автора", type: "text", required: true },
+      { name: "bio", label: "Биография", type: "text", required: false }
+    ]
+  },
+  "Факультеты": {
+    url: "/faculties",
+    columns: ["id", "name"],
+    fields: [
+      { name: "name", label: "Название факультета", type: "text", required: true }
+    ]
+  },
+  "Филиалы": {
+    url: "/branches",
+    columns: ["id", "name", "address"],
+    fields: [
+      { name: "name", label: "Название филиала", type: "text", required: true },
+      { name: "address", label: "Адрес", type: "text", required: false }
+    ]
+  },
+  "Книги": {
+    url: "/books",
+    columns: ["id", "title", "author_id", "faculty_id", "published_year"],
+    fields: [
+      { name: "title", label: "Название книги", type: "text", required: true },
+      { name: "author_id", label: "ID автора", type: "number", required: true },
+      { name: "faculty_id", label: "ID факультета (необязательно)", type: "number", required: false },
+      { name: "isbn", label: "ISBN (необязательно)", type: "text", required: false },
+      { name: "published_year", label: "Год издания (необязательно)", type: "number", required: false }
+    ]
+  },
+  "Экземпляры": {
+    url: "/copies",
+    columns: ["id", "inventory_number", "status", "book_id", "branch_id"],
+    fields: [
+      { name: "inventory_number", label: "Инвентарный номер", type: "text", required: true },
+      { name: "book_id", label: "ID книги", type: "number", required: true },
+      { name: "branch_id", label: "ID филиала", type: "number", required: true }
+    ]
+  },
+  "Выдачи": {
+    url: "/loans",
+    columns: ["id", "copy_id", "borrower_name", "issued_at", "returned_at"],
+    fields: [
+      { name: "copy_id", label: "ID экземпляра", type: "number", required: true },
+      { name: "borrower_name", label: "Имя читателя", type: "text", required: true }
+    ]
+  }
+};
+
+let currentCategoryName = null;
+
+function showError(msg) {
+  document.getElementById("error").innerText = msg;
+}
+
+async function register() {
+  const username = document.getElementById("reg-username").value;
+  const password = document.getElementById("reg-password").value;
+  const res = await fetch(API + "/auth/register", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({username, password})
+  });
+  if (res.ok) {
+    showError("Регистрация успешна, теперь войдите.");
+  } else {
+    const data = await res.json();
+    showError(data.detail || "Ошибка регистрации");
+  }
+}
+
+async function login() {
+  const username = document.getElementById("login-username").value;
+  const password = document.getElementById("login-password").value;
+  const res = await fetch(API + "/auth/login", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({username, password})
+  });
+  if (res.ok) {
+    const data = await res.json();
+    localStorage.setItem("token", data.access_token);
+    await showApp();
+  } else {
+    const data = await res.json();
+    showError(data.detail || "Ошибка входа");
+  }
+}
+
+async function showApp() {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+  const res = await fetch(API + "/auth/me", {
+    headers: {"Authorization": "Bearer " + token}
+  });
+  if (res.ok) {
+    const user = await res.json();
+    document.getElementById("whoami").innerText = user.username;
+    document.getElementById("auth").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    buildTabs();
+  } else {
+    localStorage.removeItem("token");
+  }
+}
+
+function buildTabs() {
+  const tabsDiv = document.getElementById("tabs");
+  tabsDiv.innerHTML = "";
+  const names = Object.keys(CATEGORIES);
+  names.forEach((name, index) => {
+    const btn = document.createElement("button");
+    btn.innerText = name;
+    btn.onclick = () => selectCategory(name, btn);
+    if (index === 0) btn.classList.add("active");
+    tabsDiv.appendChild(btn);
+  });
+  selectCategory(names[0], tabsDiv.children[0]);
+}
+
+async function selectCategory(name, btnEl) {
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.remove("active"));
+  btnEl.classList.add("active");
+  currentCategoryName = name;
+
+  document.getElementById("add-box").classList.remove("open");
+  document.getElementById("add-error").innerText = "";
+  buildAddForm(name);
+
+  const category = CATEGORIES[name];
+  const res = await fetch(API + category.url);
+  const rows = res.ok ? await res.json() : [];
+
+  const headRow = document.getElementById("table-head");
+  headRow.innerHTML = category.columns.map(c => `<th>${c}</th>`).join("");
+
+  const body = document.getElementById("table-body");
+  body.innerHTML = rows.map(row =>
+    "<tr>" + category.columns.map(c => `<td>${row[c] ?? ""}</td>`).join("") + "</tr>"
+  ).join("");
+}
+
+function buildAddForm(name) {
+  const category = CATEGORIES[name];
+  const container = document.getElementById("add-fields");
+  container.innerHTML = category.fields.map(f =>
+    `<input id="add-field-${f.name}" type="${f.type}" placeholder="${f.label}${f.required ? " *" : ""}">`
+  ).join("");
+}
+
+function toggleAddForm() {
+  document.getElementById("add-box").classList.toggle("open");
+}
+
+async function submitAdd() {
+  const category = CATEGORIES[currentCategoryName];
+  const errorEl = document.getElementById("add-error");
+  errorEl.innerText = "";
+
+  const payload = {};
+  for (const f of category.fields) {
+    const raw = document.getElementById(`add-field-${f.name}`).value;
+    if (raw === "") {
+      if (f.required) {
+        errorEl.innerText = `Поле "${f.label}" обязательно`;
+        return;
+      }
+      continue;
+    }
+    payload[f.name] = f.type === "number" ? Number(raw) : raw;
+  }
+
+  const token = localStorage.getItem("token");
+  const res = await fetch(API + category.url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + token
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (res.ok) {
+    document.getElementById("add-box").classList.remove("open");
+    for (const f of category.fields) {
+      document.getElementById(`add-field-${f.name}`).value = "";
+    }
+    const tabsDiv = document.getElementById("tabs");
+    const activeBtn = [...tabsDiv.children].find(b => b.classList.contains("active"));
+    selectCategory(currentCategoryName, activeBtn);
+  } else {
+    const data = await res.json();
+    errorEl.innerText = data.detail ? JSON.stringify(data.detail) : "Ошибка сохранения";
+  }
+}
+
+function logout() {
+  localStorage.removeItem("token");
+  document.getElementById("auth").style.display = "block";
+  document.getElementById("app").style.display = "none";
+}
+
+showApp();
+</script>
+
+</body>
+</html>
