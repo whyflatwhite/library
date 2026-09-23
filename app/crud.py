@@ -105,7 +105,7 @@ def issue_copy(db: Session, data: schemas.LoanCreate) -> models.Loan:
         raise DomainError(f"Экземпляр с id={data.copy_id} не найден")
     if copy_.status != models.CopyStatus.AVAILABLE:
         raise DomainError(
-            f"Экземпляр id={copy_.id} уже выдан. Сначала оформите возврат предыдущей выдачи."
+            f"Нельзя выдать экземпляр id={copy_.id}: сначала оформите возврат предыдущей выдачи."
         )
     loan = models.Loan(copy_id=copy_.id, borrower_name=data.borrower_name)
     copy_.status = models.CopyStatus.ISSUED  # type: ignore[assignment]
