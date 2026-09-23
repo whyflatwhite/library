@@ -34,7 +34,7 @@ HTTP API + реляционная БД (PostgreSQL), с полным Git/CI/CD-�
 - black/isort/flake8/mypy (качество кода)
 - Docker + docker-compose (контейнерное окружение)
 - GitHub Actions (CI: линт, тесты, сборка образа, проверка миграций)
-
+Дополнено Ирой: используется PostgreSQL как основная база данных.
 
 ## Быстрый старт (без Docker)
 
