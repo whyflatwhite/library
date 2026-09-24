@@ -55,7 +55,9 @@ class Copy(Base):
     id = Column(Integer, primary_key=True)
     inventory_number = Column(String(50), nullable=False)
     status: Column[CopyStatus] = Column(
-        Enum(CopyStatus), nullable=False, default=CopyStatus.AVAILABLE
+        Enum(CopyStatus, values_callable=lambda obj: [e.value for e in obj]),
+        nullable=False,
+        default=CopyStatus.AVAILABLE,
     )
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
