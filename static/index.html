@@ -106,7 +106,8 @@ const CATEGORIES = {
     fields: [
       { name: "copy_id", label: "ID экземпляра", type: "number", required: true },
       { name: "borrower_name", label: "Имя читателя", type: "text", required: true }
-    ]
+    ],
+    hasReturnAction: true
   }
 };
 
@@ -195,12 +196,35 @@ async function selectCategory(name, btnEl) {
   const rows = res.ok ? await res.json() : [];
 
   const headRow = document.getElementById("table-head");
-  headRow.innerHTML = category.columns.map(c => `<th>${c}</th>`).join("");
+  headRow.innerHTML = category.columns.map(c => `<th>${c}</th>`).join("")
+    + (category.hasReturnAction ? "<th>Действие</th>" : "");
 
   const body = document.getElementById("table-body");
-  body.innerHTML = rows.map(row =>
-    "<tr>" + category.columns.map(c => `<td>${row[c] ?? ""}</td>`).join("") + "</tr>"
-  ).join("");
+  body.innerHTML = rows.map(row => {
+    let cells = category.columns.map(c => `<td>${row[c] ?? ""}</td>`).join("");
+    if (category.hasReturnAction) {
+      cells += row.returned_at
+        ? "<td>—</td>"
+        : `<td><button onclick="returnLoan(${row.id})">Вернуть</button></td>`;
+    }
+    return "<tr>" + cells + "</tr>";
+  }).join("");
+}
+
+async function returnLoan(loanId) {
+  const token = localStorage.getItem("token");
+  const res = await fetch(API + `/loans/${loanId}/return`, {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + token }
+  });
+  if (res.ok) {
+    const tabsDiv = document.getElementById("tabs");
+    const activeBtn = [...tabsDiv.children].find(b => b.classList.contains("active"));
+    selectCategory(currentCategoryName, activeBtn);
+  } else {
+    const data = await res.json();
+    alert(data.detail || "Не удалось оформить возврат");
+  }
 }
 
 function buildAddForm(name) {
