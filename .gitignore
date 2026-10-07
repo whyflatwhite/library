@@ -16,3 +16,4 @@ backups/*.dump
 .vscode/
 .DS_Store
 *.log
+deploy/*.env
