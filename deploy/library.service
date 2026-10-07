@@ -1,0 +1,28 @@
+# Служба приложения Library (FastAPI + uvicorn).
+# Установка: sudo install -m 644 deploy/library.service /etc/systemd/system/library.service
+
+[Unit]
+Description=Library API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Приложение работает от непривилегированного пользователя, не от root
+User=libapp
+Group=libapp
+WorkingDirectory=/opt/library
+# Настройки и пароль БД — в файле вне репозитория
+EnvironmentFile=/etc/library/library.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/library/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Автоматический перезапуск после аварийного завершения
+Restart=on-failure
+RestartSec=3
+# Ограничения процесса
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
