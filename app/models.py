@@ -1,10 +1,17 @@
 import enum
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+
+LOAN_DAYS_DEFAULT = 14
+LOAN_DAYS_MAX = 90
+
+
+def default_due_at() -> datetime:
+    return datetime.utcnow() + timedelta(days=LOAN_DAYS_DEFAULT)
 
 
 class CopyStatus(str, enum.Enum):
@@ -72,6 +79,7 @@ class Loan(Base):
     copy_id = Column(Integer, ForeignKey("copies.id"), nullable=False)
     borrower_name = Column(String(255), nullable=False)
     issued_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    due_at = Column(DateTime, nullable=False, default=default_due_at)
     returned_at = Column(DateTime, nullable=True)
     copy = relationship("Copy", back_populates="loans")
 
