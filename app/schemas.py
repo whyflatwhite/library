@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models import CopyStatus
+from app.models import LOAN_DAYS_DEFAULT, LOAN_DAYS_MAX, CopyStatus
 
 
 class AuthorCreate(BaseModel):
@@ -87,6 +87,7 @@ class TokenResponse(BaseModel):
 class LoanCreate(BaseModel):
     copy_id: int
     borrower_name: str = Field(min_length=1, max_length=255)
+    loan_days: int = Field(default=LOAN_DAYS_DEFAULT, ge=1, le=LOAN_DAYS_MAX)
 
 
 class LoanOut(BaseModel):
@@ -95,4 +96,5 @@ class LoanOut(BaseModel):
     copy_id: int
     borrower_name: str
     issued_at: datetime
+    due_at: datetime
     returned_at: Optional[datetime]

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import func
@@ -107,7 +107,13 @@ def issue_copy(db: Session, data: schemas.LoanCreate) -> models.Loan:
         raise DomainError(
             f"Нельзя выдать экземпляр id={copy_.id}: сначала оформите возврат предыдущей выдачи."
         )
-    loan = models.Loan(copy_id=copy_.id, borrower_name=data.borrower_name)
+    issued_at = datetime.utcnow()
+    loan = models.Loan(
+        copy_id=copy_.id,
+        borrower_name=data.borrower_name,
+        issued_at=issued_at,
+        due_at=issued_at + timedelta(days=data.loan_days),
+    )
     copy_.status = models.CopyStatus.ISSUED  # type: ignore[assignment]
     db.add(loan)
     db.add(copy_)
@@ -199,3 +205,4 @@ def report_copies_by_branch(db: Session):
                 "issued_copies": issued,
             }
         )
+    return result
