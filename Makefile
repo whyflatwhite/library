@@ -5,13 +5,13 @@ setup:
 	.venv/bin/pip install --upgrade pip || .venv\Scripts\python -m pip install --upgrade pip
 	.venv/bin/pip install -r requirements.txt -r requirements-dev.txt || .venv\Scripts\python -m pip install -r requirements.txt -r requirements-dev.txt
 	test -f .env || cp .env.example .env
-	mkdir -p backups reports
+	python -c "import os; os.makedirs('backups', exist_ok=True); os.makedirs('reports', exist_ok=True)"
 
 run:
 	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 test:
-	mkdir -p reports
+	python -c "import os; os.makedirs('reports', exist_ok=True)"
 	pytest -v --junitxml=reports/junit.xml --cov --cov-report=term-missing --cov-report=xml:reports/coverage.xml --cov-report=html:reports/htmlcov
 
 quality:
