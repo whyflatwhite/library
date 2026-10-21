@@ -4,29 +4,32 @@ setup:
 	python -m venv .venv
 	.venv/bin/pip install --upgrade pip || .venv\Scripts\python -m pip install --upgrade pip
 	.venv/bin/pip install -r requirements.txt -r requirements-dev.txt || .venv\Scripts\python -m pip install -r requirements.txt -r requirements-dev.txt
+	test -f .env || cp .env.example .env
+	mkdir -p backups reports
 
 run:
 	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 test:
-	pytest -v --cov=app --cov-report=term-missing
+	mkdir -p reports
+	pytest -v --junitxml=reports/junit.xml --cov --cov-report=term-missing --cov-report=xml:reports/coverage.xml --cov-report=html:reports/htmlcov
 
 quality:
-	black --check app tests
-	isort --check-only app tests
-	flake8 app tests
-	mypy app
+	black --check app scripts tests
+	isort --check-only app scripts tests
+	flake8 app scripts tests
+	mypy app scripts
+	bandit -r app scripts -c pyproject.toml -q
 
 migrate:
 	alembic upgrade head
 
 backup:
-	mkdir -p backups
-	pg_dump -U library_user library > backups/library_$$(date +%Y%m%d_%H%M%S).sql
+	python -m scripts.backup backup
 
+# Из самой свежей копии или FILE=backups/library_....dump
 restore:
-	@LATEST=$$(ls -t backups/*.sql | head -n1); \
-	cat $$LATEST | psql -U library_user -d library
+	python -m scripts.backup restore $(if $(FILE),--file $(FILE))
 
 verify: quality test
 
