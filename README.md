@@ -106,30 +106,41 @@ deploy/
   library.service          - файл службы systemd для приложения
   migrate.env.example      - шаблон настроек для миграций
 
-migrations/                
-  versions/                
-  env.py                   - конфигурация и запуск миграций Alembic
+docs/                      
+  API.md                   - описание API
+  CONTRIBUTING.md          - правила по разработке проекта
+  DATA_MODEL.md            - описание структуры и связей модели данных
+  DEPLOYMENT.md		   - развертывание приложения на двух серверах
 
 migrations/                
-  versions/                
+  versions/
+    0001_initial.py        - начальная схема БД: авторы, факультеты, филиалы, книги, экземпляры, выдачи
+    0002_add_users.py      - таблицы пользователей и сессий
+    0003_loan_due_date.py  - срок возврата выдачи (поле loans.due_at)            
   env.py                   - конфигурация и запуск миграций Alembic
+
+scripts/
+  __init__.py		   - обозначает scripts как Python-пакет
+  backup.py		   - резервное копирование и восстановление БД (make backup, make restore)
 
 static/                    - статические файлы приложения
   index.html               - HTML-страница пользовательского интерфейса
 
 tests/                     
   conftest.py              - общие фикстуры и настройки тестов
+  helpers.py               - вспомогательные функции для подготовки тестовых данных
   test_auth.py             - тесты аутентификации
+  test_backup.py	   - тесты резервного копирования и восстановления
   test_books.py            - тесты работы с книгами
+  test_db_integration.py   - интеграционные тесты с БД: ограничения, изоляция данных
   test_health.py           - тесты health-check эндпоинта
   test_loans.py            - тесты работы с выдачей/арендой книг
-
-docs/                      
-  API.md                   - описание API
-  CONTRIBUTING.md          - правила по разработке проекта
-  DATA_MODEL.md            - описание структуры и связей модели данных
+  test_loans_rules.py      - тесты правил выдачи и возврата, срока возврата
+  test_migrations.py       - тесты миграций на чистой и заполненной БД
+  test_schemas.py          - тесты валидации и граничных значений
 
 .env.example               - пример переменных окружения и настроек проекта
+.gitattributes		   - правила переводов строк (скрипты .sh всегда с LF)
 .gitignore                 - список файлов, которые Git не должен отслеживать
 Dockerfile                 - инструкция сборки Docker-образа приложения
 Makefile                   - единый интерфейс команд проекта
@@ -137,7 +148,7 @@ README.md                  - основная документация и инс
 alembic.ini                - конфигурация Alembic для миграций БД
 docker-compose.yml         - запуск API и PostgreSQL в Docker-контейнерах
 pyproject.toml             - основная конфигурация Python-проекта и инструментов
-requirements.txt           - основные зависимости Python-приложения
 requirements-dev.txt       - зависимости для разработки и тестирования
+requirements.txt           - основные зависимости Python-приложения
 setup.cfg                  - дополнительная конфигурация Python-инструментов
 ```
