@@ -55,8 +55,10 @@ ok "/health отвечает"
 echo "== 3. Безопасность и эксплуатация =="
 uid=$($COMPOSE exec -T api id -u | tr -d '\r')
 [ "$uid" != "0" ] || fail "приложение запущено от root"
-ok "процесс приложения запущен от uid $uid (не root)"
-[ -z "$($COMPOSE port db 5432 2>/dev/null || true)" ] || fail "порт БД опубликован наружу"
+ok "процесс приложения запущен от uid $uid (не root)"db_ports=$($COMPOSE port db 5432 2>/dev/null || true)
+if [ -n "$db_ports" ] && [ "$db_ports" != ":0" ]; then
+  fail "порт БД опубликован наружу: $db_ports"
+fi
 ok "порт БД не опубликован"
 for service in db api; do
   cid=$($COMPOSE ps -q "$service")
