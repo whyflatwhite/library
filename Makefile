@@ -1,4 +1,4 @@
-.PHONY: setup run test quality migrate backup restore verify up down container-check
+.PHONY: setup run test quality migrate backup restore verify up down container-check container-migrate container-backup container-restore
 
 setup:
 	python -m venv .venv
@@ -27,20 +27,25 @@ migrate:
 backup:
 	python -m scripts.backup backup
 
-# Из самой свежей копии или FILE=backups/library_....dump
 restore:
 	python -m scripts.backup restore $(if $(FILE),--file $(FILE))
 
 verify: quality test
 
 up:
-	docker compose up --build -d
+	docker compose up --build -d --wait
 
 down:
 	docker compose down
 
 container-check:
-	docker compose up --build -d
-	sleep 5
-	docker compose exec -T api curl -sf http://localhost:8000/health
-	docker compose down
+	bash scripts/container_check.sh
+
+container-migrate:
+	bash scripts/container_db.sh migrate
+
+container-backup:
+	bash scripts/container_db.sh backup
+
+container-restore:
+	bash scripts/container_db.sh restore $(FILE)
