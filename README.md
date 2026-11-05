@@ -122,6 +122,8 @@ migrations/
 scripts/
   __init__.py		   - обозначает scripts как Python-пакет
   backup.py		   - резервное копирование и восстановление БД (make backup, make restore)
+  container_check.sh       - автоматическая проверка окружения
+  container_db.sh          - миграции, резервная копия и восстановление в контейнерах
 
 static/                    - статические файлы приложения
   index.html               - HTML-страница пользовательского интерфейса
@@ -132,6 +134,7 @@ tests/
   test_auth.py             - тесты аутентификации
   test_backup.py	   - тесты резервного копирования и восстановления
   test_books.py            - тесты работы с книгами
+  test_container_rules.py  - статические проверки запретов: latest, root, секреты, healthcheck, порты, лимиты
   test_db_integration.py   - интеграционные тесты с БД: ограничения, изоляция данных
   test_health.py           - тесты health-check эндпоинта
   test_loans.py            - тесты работы с выдачей/арендой книг
@@ -139,6 +142,7 @@ tests/
   test_migrations.py       - тесты миграций на чистой и заполненной БД
   test_schemas.py          - тесты валидации и граничных значений
 
+.dockerignore              - список файлов, которые не попадут в сборку
 .env.example               - пример переменных окружения и настроек проекта
 .gitattributes		   - правила переводов строк (скрипты .sh всегда с LF)
 .gitignore                 - список файлов, которые Git не должен отслеживать
