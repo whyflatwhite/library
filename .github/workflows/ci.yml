@@ -1,69 +1,298 @@
 name: CI
 
+# Запуск: любой push, pull request в main (в том числе изменение main)
 on:
-  pull_request:
   push:
+    branches: ["**"]
+  pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
-  quality-and-tests:
+  # Стиль и типы
+  style:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.txt
-
-      - name: Lint & static analysis (make quality)
-        run: |
-          black --check app tests
-          isort --check-only app tests
-          flake8 app tests
-          mypy app
-
-      - name: Run tests (make test)
-        run: pytest -v --cov=app --cov-report=term-missing
-
-  build-image:
-    runs-on: ubuntu-latest
-    needs: quality-and-tests
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build Docker image
-        run: docker build -t library-api:${{ github.sha }} .
-
-  migration-check:
-    runs-on: ubuntu-latest
-    needs: quality-and-tests
+    container: python:3.12.7-bookworm
     services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: library_user
-          POSTGRES_PASSWORD: library_pass
-          POSTGRES_DB: library
-        ports: ["5432:5432"]
+      docker:
+        image: docker:27.3.1-dind
         options: >-
-          --health-cmd "pg_isready -U library_user -d library"
-          --health-interval 5s
+          --privileged
+          --health-cmd "docker info"
+          --health-interval 3s
           --health-timeout 5s
-          --health-retries 10
+          --health-retries 20
+        env:
+          DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - uses: actions/cache@v4
         with:
-          python-version: "3.12"
+          path: /root/.cache/pip
+          key: pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: pip-
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Style and types (make lint)
+        run: make lint
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Apply migrations against a clean database
+  # Тесты на изолированной БД в памяти, отчеты тестов и покрытия
+  tests:
+    runs-on: ubuntu-latest
+    container: python:3.12.7-bookworm
+    services:
+      docker:
+        image: docker:27.3.1-dind
+        options: >-
+          --privileged
+          --health-cmd "docker info"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 20
         env:
-          DATABASE_URL: postgresql+psycopg://library_user:library_pass@localhost:5432/library
-        run: alembic upgrade head
+          DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: /root/.cache/pip
+          key: pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: pip-
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Tests and coverage (make test)
+        run: make test
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: reports/
+
+  # Миграции на отдельной тестовой БД PostgreSQL внутри DinD
+  migrations:
+    runs-on: ubuntu-latest
+    container: python:3.12.7-bookworm
+    services:
+      docker:
+        image: docker:27.3.1-dind
+        options: >-
+          --privileged
+          --health-cmd "docker info"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 20
+        env:
+          DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ci-tools
+      - name: Prepare .env with the test database password from the secret
+        env:
+          CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+        run: |
+          cp .env.example .env
+          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${CI_DB_PASSWORD}/; s/^POSTGRES_DB=.*/POSTGRES_DB=library_ci/" .env
+      - name: Migrations on a clean database
+        run: bash scripts/ci_db_check.sh migrate
+
+  # Резервное копирование и восстановление на отдельной тестовой БД внутри DinD
+  backup:
+    runs-on: ubuntu-latest
+    container: python:3.12.7-bookworm
+    services:
+      docker:
+        image: docker:27.3.1-dind
+        options: >-
+          --privileged
+          --health-cmd "docker info"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 20
+        env:
+          DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ci-tools
+      - name: Prepare .env with the test database password from the secret
+        env:
+          CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+        run: |
+          cp .env.example .env
+          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${CI_DB_PASSWORD}/; s/^POSTGRES_DB=.*/POSTGRES_DB=library_ci/" .env
+      - name: Backup, deletion and restore
+        run: bash scripts/ci_db_check.sh backup
+
+  # Безопасность: SAST, проверка зависимостей, поиск секретов
+  security:
+    runs-on: ubuntu-latest
+    container: python:3.12.7-bookworm
+    services:
+      docker:
+        image: docker:27.3.1-dind
+        options: >-
+          --privileged
+          --health-cmd "docker info"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 20
+        env:
+          DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/cache@v4
+        with:
+          path: /root/.cache/pip
+          key: pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: pip-
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: mkdir -p reports
+      - name: SAST (make sast)
+        run: make sast
+      - name: Dependency audit
+        shell: bash
+        run: pip-audit -r requirements.txt | tee reports/pip-audit.txt
+      - name: Install gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar -xz gitleaks
+          mv gitleaks /usr/local/bin/gitleaks
+      - name: Secret scan
+        run: gitleaks detect --source . --no-banner --redact --report-format json --report-path reports/gitleaks.json
+      - name: Save SAST report
+        if: always()
+        run: bandit -r app scripts -c pyproject.toml -f json -o reports/bandit.json
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: reports/
+
+  # Контейнерная проверка
+  container-check:
+    runs-on: ubuntu-latest
+    container: python:3.12.7-bookworm
+    services:
+      docker:
+        image: docker:27.3.1-dind
+        options: >-
+          --privileged
+          --health-cmd "docker info"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 20
+        env:
+          DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ci-tools
+      - name: Prepare .env with the test database password from the secret
+        env:
+          CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+        run: |
+          cp .env.example .env
+          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${CI_DB_PASSWORD}/; s/^POSTGRES_DB=.*/POSTGRES_DB=library_ci/" .env
+      - name: Container check (make container-check)
+        env:
+          APP_HOST: docker
+        run: make container-check
+
+  # Сборка образа и его анализ
+  build:
+    needs: [style, tests, migrations, backup, security, container-check]
+    runs-on: ubuntu-latest
+    container: python:3.12.7-bookworm
+    services:
+      docker:
+        image: docker:27.3.1-dind
+        options: >-
+          --privileged
+          --health-cmd "docker info"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 20
+        env:
+          DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ci-tools
+      - name: Image name and tag from commit SHA
+        run: |
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/library-api" >> "$GITHUB_ENV"
+          echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+      - name: Build image
+        run: docker build -t "$IMAGE:$TAG" .
+      - name: Save image
+        run: docker save "$IMAGE:$TAG" -o image.tar
+      - name: Install trivy
+        run: |
+          curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.56.2/trivy_0.56.2_Linux-64bit.tar.gz | tar -xz trivy
+          mv trivy /usr/local/bin/trivy
+      - name: Image scan report
+        run: trivy image --input image.tar --format json --output trivy-report.json --severity CRITICAL,HIGH --ignore-unfixed --exit-code 0
+      - name: Image scan (fail on CRITICAL and HIGH)
+        run: trivy image --input image.tar --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1
+      - name: Compress image
+        run: gzip image.tar
+      - name: Upload image and scan report
+        uses: actions/upload-artifact@v4
+        with:
+          name: image
+          path: |
+            image.tar.gz
+            trivy-report.json
+          retention-days: 1
+
+  # Публикация (только после build и всех проверок и только при изменении main)
+  publish:
+    needs: [style, tests, migrations, backup, security, container-check, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    container: python:3.12.7-bookworm
+    services:
+      docker:
+        image: docker:27.3.1-dind
+        options: >-
+          --privileged
+          --health-cmd "docker info"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 20
+        env:
+          DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ci-tools
+      - uses: actions/download-artifact@v4
+        with:
+          name: image
+      - name: Publish image to GitHub Container Registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/library-api"
+          TAG="sha-${GITHUB_SHA::7}"
+          gunzip -c image.tar.gz | docker load
+          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$TAG"
