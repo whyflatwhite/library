@@ -11,5 +11,12 @@ runs:
         mkdir -p /usr/local/lib/docker/cli-plugins
         curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64
         chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+        for i in {1..30}; do
+          if docker version; then
+            docker compose version
+            exit 0
+          fi
+          sleep 2
+        done
         docker version
         docker compose version
