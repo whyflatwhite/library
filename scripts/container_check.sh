@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # make container-check: автоматическая проверка контейнерного окружения.
+# Работает в отдельном проекте Compose library_check на порту 18080: рабочие контейнеры
+# и их данные не затрагиваются. В конце все созданное удаляется.
+# Через переменную DOCKER_HOST работает и с демоном Docker-in-Docker (CI).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 export COMPOSE="docker compose -p library_check"
 export APP_PORT=18080
-BASE="http://127.0.0.1:${APP_PORT}"
+# APP_HOST: где доступны опубликованные порты (в CI с DinD это хост docker)
+BASE="http://${APP_HOST:-127.0.0.1}:${APP_PORT}"
 BACKUP_DIR=$(mktemp -d)
 export BACKUP_DIR
 
@@ -56,10 +60,7 @@ echo "== 3. Безопасность и эксплуатация =="
 uid=$($COMPOSE exec -T api id -u | tr -d '\r')
 [ "$uid" != "0" ] || fail "приложение запущено от root"
 ok "процесс приложения запущен от uid $uid (не root)"
-db_ports=$($COMPOSE port db 5432 2>/dev/null || true)
-if [ -n "$db_ports" ] && [ "$db_ports" != ":0" ]; then
-  fail "порт БД опубликован наружу: $db_ports"
-fi
+[ -z "$($COMPOSE port db 5432 2>/dev/null || true)" ] || fail "порт БД опубликован наружу"
 ok "порт БД не опубликован"
 for service in db api; do
   cid=$($COMPOSE ps -q "$service")
