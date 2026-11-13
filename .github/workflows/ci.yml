@@ -14,7 +14,9 @@ jobs:
   # Стиль и типы
   style:
     runs-on: ubuntu-latest
-    container: python:3.12.7-bookworm
+    container:
+      image: python:3.12.7-bookworm
+      options: --dns 127.0.0.11
     services:
       docker:
         image: docker:27.3.1-dind
@@ -26,6 +28,8 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -40,7 +44,9 @@ jobs:
   # Тесты на изолированной БД в памяти, отчеты тестов и покрытия
   tests:
     runs-on: ubuntu-latest
-    container: python:3.12.7-bookworm
+    container:
+      image: python:3.12.7-bookworm
+      options: --dns 127.0.0.11
     services:
       docker:
         image: docker:27.3.1-dind
@@ -52,6 +58,8 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -72,7 +80,9 @@ jobs:
   # Миграции на отдельной тестовой БД PostgreSQL внутри DinD
   migrations:
     runs-on: ubuntu-latest
-    container: python:3.12.7-bookworm
+    container:
+      image: python:3.12.7-bookworm
+      options: --dns 127.0.0.11
     services:
       docker:
         image: docker:27.3.1-dind
@@ -84,31 +94,11 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
-      - name: Wait for Docker
-        env:
-          DOCKER_HOST: tcp://docker:2375
-        run: |
-          python - <<'PY'
-          import time
-          import urllib.request
-
-          for _ in range(30):
-              try:
-                  with urllib.request.urlopen("http://docker:2375/_ping", timeout=2) as response:
-                      if response.read().decode().strip() == "OK":
-                          print("Docker is ready")
-                          break
-              except Exception as error:
-                  print(f"Waiting for Docker: {error}")
-              time.sleep(2)
-          else:
-              raise SystemExit("Docker is not available")
-          PY
       - uses: ./.github/actions/ci-tools
-        env:
-          DOCKER_HOST: tcp://docker:2375
       - name: Prepare .env with the test database password from the secret
         env:
           CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
@@ -116,14 +106,14 @@ jobs:
           cp .env.example .env
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${CI_DB_PASSWORD}/; s/^POSTGRES_DB=.*/POSTGRES_DB=library_ci/" .env
       - name: Migrations on a clean database
-        env:
-          DOCKER_HOST: tcp://docker:2375
         run: bash scripts/ci_db_check.sh migrate
 
   # Резервное копирование и восстановление на отдельной тестовой БД внутри DinD
   backup:
     runs-on: ubuntu-latest
-    container: python:3.12.7-bookworm
+    container:
+      image: python:3.12.7-bookworm
+      options: --dns 127.0.0.11
     services:
       docker:
         image: docker:27.3.1-dind
@@ -135,31 +125,11 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
-      - name: Wait for Docker
-        env:
-          DOCKER_HOST: tcp://docker:2375
-        run: |
-          python - <<'PY'
-          import time
-          import urllib.request
-
-          for _ in range(30):
-              try:
-                  with urllib.request.urlopen("http://docker:2375/_ping", timeout=2) as response:
-                      if response.read().decode().strip() == "OK":
-                          print("Docker is ready")
-                          break
-              except Exception as error:
-                  print(f"Waiting for Docker: {error}")
-              time.sleep(2)
-          else:
-              raise SystemExit("Docker is not available")
-          PY
       - uses: ./.github/actions/ci-tools
-        env:
-          DOCKER_HOST: tcp://docker:2375
       - name: Prepare .env with the test database password from the secret
         env:
           CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
@@ -167,14 +137,14 @@ jobs:
           cp .env.example .env
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${CI_DB_PASSWORD}/; s/^POSTGRES_DB=.*/POSTGRES_DB=library_ci/" .env
       - name: Backup, deletion and restore
-        env:
-          DOCKER_HOST: tcp://docker:2375
         run: bash scripts/ci_db_check.sh backup
 
   # Безопасность: SAST, проверка зависимостей, поиск секретов
   security:
     runs-on: ubuntu-latest
-    container: python:3.12.7-bookworm
+    container:
+      image: python:3.12.7-bookworm
+      options: --dns 127.0.0.11
     services:
       docker:
         image: docker:27.3.1-dind
@@ -186,6 +156,8 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
         with:
@@ -221,7 +193,9 @@ jobs:
   # Контейнерная проверка
   container-check:
     runs-on: ubuntu-latest
-    container: python:3.12.7-bookworm
+    container:
+      image: python:3.12.7-bookworm
+      options: --dns 127.0.0.11
     services:
       docker:
         image: docker:27.3.1-dind
@@ -233,31 +207,11 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
-      - name: Wait for Docker
-        env:
-          DOCKER_HOST: tcp://docker:2375
-        run: |
-          python - <<'PY'
-          import time
-          import urllib.request
-
-          for _ in range(30):
-              try:
-                  with urllib.request.urlopen("http://docker:2375/_ping", timeout=2) as response:
-                      if response.read().decode().strip() == "OK":
-                          print("Docker is ready")
-                          break
-              except Exception as error:
-                  print(f"Waiting for Docker: {error}")
-              time.sleep(2)
-          else:
-              raise SystemExit("Docker is not available")
-          PY
       - uses: ./.github/actions/ci-tools
-        env:
-          DOCKER_HOST: tcp://docker:2375
       - name: Prepare .env with the test database password from the secret
         env:
           CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
@@ -266,7 +220,6 @@ jobs:
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${CI_DB_PASSWORD}/; s/^POSTGRES_DB=.*/POSTGRES_DB=library_ci/" .env
       - name: Container check (make container-check)
         env:
-          DOCKER_HOST: tcp://docker:2375
           APP_HOST: docker
         run: make container-check
 
@@ -274,7 +227,9 @@ jobs:
   build:
     needs: [style, tests, migrations, backup, security, container-check]
     runs-on: ubuntu-latest
-    container: python:3.12.7-bookworm
+    container:
+      image: python:3.12.7-bookworm
+      options: --dns 127.0.0.11
     services:
       docker:
         image: docker:27.3.1-dind
@@ -286,54 +241,26 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
-      - name: Wait for Docker
-        env:
-          DOCKER_HOST: tcp://docker:2375
-        run: |
-          python - <<'PY'
-          import time
-          import urllib.request
-
-          for _ in range(30):
-              try:
-                  with urllib.request.urlopen("http://docker:2375/_ping", timeout=2) as response:
-                      if response.read().decode().strip() == "OK":
-                          print("Docker is ready")
-                          break
-              except Exception as error:
-                  print(f"Waiting for Docker: {error}")
-              time.sleep(2)
-          else:
-              raise SystemExit("Docker is not available")
-          PY
       - uses: ./.github/actions/ci-tools
-        env:
-          DOCKER_HOST: tcp://docker:2375
       - name: Image name and tag from commit SHA
         run: |
           echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/library-api" >> "$GITHUB_ENV"
           echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
       - name: Build image
-        env:
-          DOCKER_HOST: tcp://docker:2375
         run: docker build -t "$IMAGE:$TAG" .
       - name: Save image
-        env:
-          DOCKER_HOST: tcp://docker:2375
         run: docker save "$IMAGE:$TAG" -o image.tar
       - name: Install trivy
         run: |
           curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.56.2/trivy_0.56.2_Linux-64bit.tar.gz | tar -xz trivy
           mv trivy /usr/local/bin/trivy
       - name: Image scan report
-        env:
-          DOCKER_HOST: tcp://docker:2375
         run: trivy image --input image.tar --format json --output trivy-report.json --severity CRITICAL,HIGH --ignore-unfixed --exit-code 0
       - name: Image scan (fail on CRITICAL and HIGH)
-        env:
-          DOCKER_HOST: tcp://docker:2375
         run: trivy image --input image.tar --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1
       - name: Compress image
         run: gzip image.tar
@@ -351,7 +278,9 @@ jobs:
     needs: [style, tests, migrations, backup, security, container-check, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    container: python:3.12.7-bookworm
+    container:
+      image: python:3.12.7-bookworm
+      options: --dns 127.0.0.11
     services:
       docker:
         image: docker:27.3.1-dind
@@ -363,40 +292,19 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://docker:2375
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
-      - name: Wait for Docker
-        env:
-          DOCKER_HOST: tcp://docker:2375
-        run: |
-          python - <<'PY'
-          import time
-          import urllib.request
-
-          for _ in range(30):
-              try:
-                  with urllib.request.urlopen("http://docker:2375/_ping", timeout=2) as response:
-                      if response.read().decode().strip() == "OK":
-                          print("Docker is ready")
-                          break
-              except Exception as error:
-                  print(f"Waiting for Docker: {error}")
-              time.sleep(2)
-          else:
-              raise SystemExit("Docker is not available")
-          PY
       - uses: ./.github/actions/ci-tools
-        env:
-          DOCKER_HOST: tcp://docker:2375
       - uses: actions/download-artifact@v4
         with:
           name: image
       - name: Publish image to GitHub Container Registry
         env:
-          DOCKER_HOST: tcp://docker:2375
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/library-api"
