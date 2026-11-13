@@ -1,3 +1,4 @@
+```yaml
 name: CI
 
 # Запуск: любой push, pull request в main (в том числе изменение main)
@@ -26,8 +27,6 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -54,8 +53,6 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -88,11 +85,11 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ci-tools
+        env:
+          DOCKER_HOST: tcp://docker:2375
       - name: Prepare .env with the test database password from the secret
         env:
           CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
@@ -100,6 +97,8 @@ jobs:
           cp .env.example .env
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${CI_DB_PASSWORD}/; s/^POSTGRES_DB=.*/POSTGRES_DB=library_ci/" .env
       - name: Migrations on a clean database
+        env:
+          DOCKER_HOST: tcp://docker:2375
         run: bash scripts/ci_db_check.sh migrate
 
   # Резервное копирование и восстановление на отдельной тестовой БД внутри DinD
@@ -117,11 +116,11 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ci-tools
+        env:
+          DOCKER_HOST: tcp://docker:2375
       - name: Prepare .env with the test database password from the secret
         env:
           CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
@@ -129,6 +128,8 @@ jobs:
           cp .env.example .env
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${CI_DB_PASSWORD}/; s/^POSTGRES_DB=.*/POSTGRES_DB=library_ci/" .env
       - name: Backup, deletion and restore
+        env:
+          DOCKER_HOST: tcp://docker:2375
         run: bash scripts/ci_db_check.sh backup
 
   # Безопасность: SAST, проверка зависимостей, поиск секретов
@@ -146,8 +147,6 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
         with:
@@ -195,11 +194,11 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ci-tools
+        env:
+          DOCKER_HOST: tcp://docker:2375
       - name: Prepare .env with the test database password from the secret
         env:
           CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
@@ -208,6 +207,7 @@ jobs:
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${CI_DB_PASSWORD}/; s/^POSTGRES_DB=.*/POSTGRES_DB=library_ci/" .env
       - name: Container check (make container-check)
         env:
+          DOCKER_HOST: tcp://docker:2375
           APP_HOST: docker
         run: make container-check
 
@@ -227,26 +227,34 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ci-tools
+        env:
+          DOCKER_HOST: tcp://docker:2375
       - name: Image name and tag from commit SHA
         run: |
           echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/library-api" >> "$GITHUB_ENV"
           echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
       - name: Build image
+        env:
+          DOCKER_HOST: tcp://docker:2375
         run: docker build -t "$IMAGE:$TAG" .
       - name: Save image
+        env:
+          DOCKER_HOST: tcp://docker:2375
         run: docker save "$IMAGE:$TAG" -o image.tar
       - name: Install trivy
         run: |
           curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.56.2/trivy_0.56.2_Linux-64bit.tar.gz | tar -xz trivy
           mv trivy /usr/local/bin/trivy
       - name: Image scan report
+        env:
+          DOCKER_HOST: tcp://docker:2375
         run: trivy image --input image.tar --format json --output trivy-report.json --severity CRITICAL,HIGH --ignore-unfixed --exit-code 0
       - name: Image scan (fail on CRITICAL and HIGH)
+        env:
+          DOCKER_HOST: tcp://docker:2375
         run: trivy image --input image.tar --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1
       - name: Compress image
         run: gzip image.tar
@@ -276,19 +284,20 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ci-tools
+        env:
+          DOCKER_HOST: tcp://docker:2375
       - uses: actions/download-artifact@v4
         with:
           name: image
       - name: Publish image to GitHub Container Registry
         env:
+          DOCKER_HOST: tcp://docker:2375
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/library-api"
@@ -296,3 +305,4 @@ jobs:
           gunzip -c image.tar.gz | docker load
           echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker push "$IMAGE:$TAG"
+```
