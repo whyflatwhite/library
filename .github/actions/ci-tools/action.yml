@@ -1,0 +1,22 @@
+name: ci-tools
+description: Docker CLI и плагин Compose для заданий, которые используют демон Docker-in-Docker
+
+runs:
+  using: composite
+  steps:
+    - name: Install Docker CLI and Compose plugin
+      shell: bash
+      run: |
+        curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz | tar -xz --strip-components=1 -C /usr/local/bin docker/docker
+        mkdir -p /usr/local/lib/docker/cli-plugins
+        curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64
+        chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+        for i in {1..30}; do
+          if docker version; then
+            docker compose version
+            exit 0
+          fi
+          sleep 2
+        done
+        docker version
+        docker compose version

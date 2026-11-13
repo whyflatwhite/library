@@ -1,4 +1,4 @@
-.PHONY: setup run test quality migrate backup restore verify up down container-check container-migrate container-backup container-restore
+.PHONY: setup run test quality lint sast migrate backup restore verify up down container-check container-migrate container-backup container-restore
 
 setup:
 	python -m venv .venv
@@ -14,11 +14,15 @@ test:
 	python -c "import os; os.makedirs('reports', exist_ok=True)"
 	pytest -v --junitxml=reports/junit.xml --cov --cov-report=term-missing --cov-report=xml:reports/coverage.xml --cov-report=html:reports/htmlcov
 
-quality:
+quality: lint sast
+
+lint:
 	black --check app scripts tests
 	isort --check-only app scripts tests
 	flake8 app scripts tests
 	mypy app scripts
+
+sast:
 	bandit -r app scripts -c pyproject.toml -q
 
 migrate:
