@@ -32,6 +32,8 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
+        env:
+          DOCKER_HOST: ""
       - uses: actions/cache@v4
         with:
           path: /root/.cache/pip
@@ -62,6 +64,8 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
+        env:
+          DOCKER_HOST: ""
       - uses: actions/cache@v4
         with:
           path: /root/.cache/pip
@@ -98,6 +102,8 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
+        env:
+          DOCKER_HOST: ""
       - uses: ./.github/actions/ci-tools
       - name: Prepare .env with the test database password from the secret
         env:
@@ -129,6 +135,8 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
+        env:
+          DOCKER_HOST: ""
       - uses: ./.github/actions/ci-tools
       - name: Prepare .env with the test database password from the secret
         env:
@@ -160,6 +168,8 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
+        env:
+          DOCKER_HOST: ""
         with:
           fetch-depth: 0
       - uses: actions/cache@v4
@@ -211,6 +221,8 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
+        env:
+          DOCKER_HOST: ""
       - uses: ./.github/actions/ci-tools
       - name: Prepare .env with the test database password from the secret
         env:
@@ -245,6 +257,8 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
+        env:
+          DOCKER_HOST: ""
       - uses: ./.github/actions/ci-tools
       - name: Image name and tag from commit SHA
         run: |
@@ -299,6 +313,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+        env:
+          DOCKER_HOST: ""
       - uses: ./.github/actions/ci-tools
       - uses: actions/download-artifact@v4
         with:
