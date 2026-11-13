@@ -86,6 +86,26 @@ jobs:
           DOCKER_TLS_CERTDIR: ""
     steps:
       - uses: actions/checkout@v4
+      - name: Wait for Docker
+        env:
+          DOCKER_HOST: tcp://docker:2375
+        run: |
+          python - <<'PY'
+          import time
+          import urllib.request
+
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen("http://docker:2375/_ping", timeout=2) as response:
+                      if response.read().decode().strip() == "OK":
+                          print("Docker is ready")
+                          break
+              except Exception as error:
+                  print(f"Waiting for Docker: {error}")
+              time.sleep(2)
+          else:
+              raise SystemExit("Docker is not available")
+          PY
       - uses: ./.github/actions/ci-tools
         env:
           DOCKER_HOST: tcp://docker:2375
@@ -117,6 +137,26 @@ jobs:
           DOCKER_TLS_CERTDIR: ""
     steps:
       - uses: actions/checkout@v4
+      - name: Wait for Docker
+        env:
+          DOCKER_HOST: tcp://docker:2375
+        run: |
+          python - <<'PY'
+          import time
+          import urllib.request
+
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen("http://docker:2375/_ping", timeout=2) as response:
+                      if response.read().decode().strip() == "OK":
+                          print("Docker is ready")
+                          break
+              except Exception as error:
+                  print(f"Waiting for Docker: {error}")
+              time.sleep(2)
+          else:
+              raise SystemExit("Docker is not available")
+          PY
       - uses: ./.github/actions/ci-tools
         env:
           DOCKER_HOST: tcp://docker:2375
@@ -195,6 +235,26 @@ jobs:
           DOCKER_TLS_CERTDIR: ""
     steps:
       - uses: actions/checkout@v4
+      - name: Wait for Docker
+        env:
+          DOCKER_HOST: tcp://docker:2375
+        run: |
+          python - <<'PY'
+          import time
+          import urllib.request
+
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen("http://docker:2375/_ping", timeout=2) as response:
+                      if response.read().decode().strip() == "OK":
+                          print("Docker is ready")
+                          break
+              except Exception as error:
+                  print(f"Waiting for Docker: {error}")
+              time.sleep(2)
+          else:
+              raise SystemExit("Docker is not available")
+          PY
       - uses: ./.github/actions/ci-tools
         env:
           DOCKER_HOST: tcp://docker:2375
@@ -228,6 +288,26 @@ jobs:
           DOCKER_TLS_CERTDIR: ""
     steps:
       - uses: actions/checkout@v4
+      - name: Wait for Docker
+        env:
+          DOCKER_HOST: tcp://docker:2375
+        run: |
+          python - <<'PY'
+          import time
+          import urllib.request
+
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen("http://docker:2375/_ping", timeout=2) as response:
+                      if response.read().decode().strip() == "OK":
+                          print("Docker is ready")
+                          break
+              except Exception as error:
+                  print(f"Waiting for Docker: {error}")
+              time.sleep(2)
+          else:
+              raise SystemExit("Docker is not available")
+          PY
       - uses: ./.github/actions/ci-tools
         env:
           DOCKER_HOST: tcp://docker:2375
@@ -288,6 +368,26 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+      - name: Wait for Docker
+        env:
+          DOCKER_HOST: tcp://docker:2375
+        run: |
+          python - <<'PY'
+          import time
+          import urllib.request
+
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen("http://docker:2375/_ping", timeout=2) as response:
+                      if response.read().decode().strip() == "OK":
+                          print("Docker is ready")
+                          break
+              except Exception as error:
+                  print(f"Waiting for Docker: {error}")
+              time.sleep(2)
+          else:
+              raise SystemExit("Docker is not available")
+          PY
       - uses: ./.github/actions/ci-tools
         env:
           DOCKER_HOST: tcp://docker:2375
