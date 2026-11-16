@@ -16,8 +16,7 @@
 3. **Коммиты** - несколько осмысленных коммитов (не один "wip"), сообщение в формате
    `тип: краткое описание` (`feat:`, `fix:`, `test:`, `docs:`, `chore:`).
 4. **Локальные проверки перед пушем** - обязательно:
-   - `make quality` - форматирование (black, isort), статический анализ (flake8, mypy)
-     и анализ безопасности кода SAST (bandit);
+   - `make quality` = `make lint` (black, isort, flake8, mypy) + `make sast` (bandit);
    - `make test` - unit- и интеграционные тесты, миграции, резервное копирование;
      покрытие не ниже порога `fail_under` в `pyproject.toml`; отчеты в `reports/`;
    - `make container-check` - автоматическая проверка контейнерного окружения (Linux + Docker);
@@ -27,15 +26,17 @@
 5. **Pull Request** в `main`:
    - описание: что изменено и зачем, ссылка на задачу;
    - обязательный ревью хотя бы от одного другого участника команды;
-   - CI (GitHub Actions) должен пройти зеленым: quality, tests, build image, migration-check;
+   - CI (GitHub Actions) должен пройти зеленым: style, tests, migrations, backup, security,
+     container-check, build;
    - если PR затрагивает критические файлы приемки (`Makefile`, `.github/workflows/*`,
      `docker-compose.yml`, `Dockerfile`, `migrations/*`, `pyproject.toml`, `docs/CONTRIBUTING.md`) - это
-     явно указывается в описании PR, и ревьюер обязан отдельно проверить эти файлы.
+     явно указывается в описании PR, и ревьюер обязан отдельно проверить эти файлы. Список
+     критических файлов закреплен в `.github/CODEOWNERS`: GitHub сам требует одобрения владельца.
 6. **Слияние** - только после зеленого CI и апрува ревьюера. Merge в `main`.
-7. **CI** - на каждый PR и на каждый push в `main` автоматически прогоняются:
-   линтеры, тесты, сборка Docker-образа, применение миграций к чистой БД.
-8. **Образ / CD** - из `main` собирается Docker-образ (тег = короткий SHA коммита или
-   версия), разворачивается через `docker compose up`.
+7. **CI** - на каждый push и PR автоматически прогоняются стадии: style, tests, migrations,
+   backup, security, container-check, build; публикация (publish) - только при изменении `main`.
+8. **Образ / CD** - из `main` публикуется Docker-образ `ghcr.io/<владелец>/library-api` с тегом
+   `sha-<7 символов SHA коммита>`; разворачивается через `docker compose up`.
 9. **Проверка релиза** - после разворачивания вручную или скриптом проверяется `/health`
    и один-два ключевых сценария (создание книги, выдача экземпляра).
 10. **Наблюдение** - логи приложения (`logging`, уровень задается `LOG_LEVEL`) проверяются
@@ -65,7 +66,9 @@
 | `make setup`         | Первоначальная настройка (venv + зависимости) |
 | `make run`           | Локальный запуск API                          |
 | `make test`          | Автотесты                                     |
-| `make quality`       | Форматирование + статический анализ + SAST    |
+| `make quality`       | `make lint` + `make sast`                     |
+| `make lint`          | black, isort, flake8, mypy                    |
+| `make sast`          | bandit (анализ безопасности кода)             |
 | `make migrate`       | Применение миграций Alembic                   |
 | `make backup`        | Резервная копия БД                            |
 | `make restore`       | Восстановление БД из резервной копии          |
@@ -116,3 +119,40 @@
 - Отключать или удалять healthcheck.
 - Публиковать порты, кроме порта приложения (в частности, порт БД).
 - Менять контейнерное окружение без успешного `make container-check`.
+
+## Непрерывная интеграция (CI)
+
+- Система CI - GitHub Actions, pipeline в `.github/workflows/ci.yml`. Запускается при push в любую
+  ветку, при PR в `main` и при изменении `main`.
+- В CI выполняются те же команды, что локально: `make lint`, `make test`, `make sast`,
+  `make container-migrate`, `make container-backup`, `make container-restore`,
+  `make container-check`. Поэтому результат
+  локальной проверки и серверной должен совпадать; расхождение - дефект окружения, а не повод
+  игнорировать проверку.
+- Все стадии выполняются в Docker-in-Docker (DinD): job работает в контейнере, а демон Docker
+  предоставляет служебный контейнер `docker:27.3.1-dind` (`DOCKER_HOST=tcp://docker:2375`).
+  Контейнеры, которые создают проверки (БД, приложение, образ), живут внутри DinD и исчезают
+  вместе с ним.
+- Стадии: **style** (`make lint`), **tests** (`make test`, отчеты в артефакте `test-reports`),
+  **migrations** и **backup** (`scripts/ci_db_check.sh` на отдельной тестовой БД PostgreSQL
+  `library_ci` в контейнере внутри DinD), **security** (`make sast`, `pip-audit` - проверка зависимостей, `gitleaks` -
+  поиск секретов, отчеты в артефакте `security-reports`), **container-check**, **build** (сборка
+  образа и его анализ `trivy`), **publish** (отправка образа).
+- Образ получает тег `sha-<7 символов SHA коммита>`. Тег `latest` не используется.
+- Стадии `build` и `publish` зависят от всех обязательных проверок (`needs`): при падении любой
+  из них образ не собирается и не публикуется.
+- Зависимости Python кэшируются (`actions/cache`, каталог кэша pip).
+- Пароль тестовой БД хранится в секрете репозитория `CI_DB_PASSWORD`, токен публикации -
+  в `GITHUB_TOKEN` (выдается GitHub на время запуска). В файлах репозитория паролей нет.
+
+### Защита критических файлов
+
+- Критические файлы приемки: `tests/`, `Makefile`, `pyproject.toml`, `setup.cfg`, `.github/`
+  (pipeline и `CODEOWNERS`), `requirements*.txt`, `Dockerfile`, `docker-compose.yml`, `scripts/`,
+  `migrations/`, `docs/CONTRIBUTING.md`. Они перечислены в `.github/CODEOWNERS`.
+- Ветка `main` защищена: слияние только через PR, обязательны одобрение владельца критических
+  файлов (Code Owners) и зеленые проверки; правило действует и для администратора.
+- Нельзя: удалять или пропускать тесты, отключать стадии pipeline, снижать пороги (`fail_under`),
+  добавлять исключения анализаторов, ослаблять `needs` у `build` и `publish`. Такое изменение
+  затрагивает критический файл, поэтому не может быть принято без одобрения другого участника.
+  Тесты `tests/test_ci_config.py` дополнительно проверяют, что структура pipeline не ослаблена.
