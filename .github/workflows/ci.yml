@@ -14,8 +14,7 @@ jobs:
   # Стиль и типы
   style:
     runs-on: ubuntu-latest
-    container:
-      image: python:3.12.7-bookworm
+    container: python:3.12.7-bookworm
     services:
       docker:
         image: docker:27.3.1-dind
@@ -31,8 +30,6 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
-        env:
-          DOCKER_HOST: ""
       - uses: actions/cache@v4
         with:
           path: /root/.cache/pip
@@ -45,8 +42,7 @@ jobs:
   # Тесты на изолированной БД в памяти, отчеты тестов и покрытия
   tests:
     runs-on: ubuntu-latest
-    container:
-      image: python:3.12.7-bookworm
+    container: python:3.12.7-bookworm
     services:
       docker:
         image: docker:27.3.1-dind
@@ -62,8 +58,6 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
-        env:
-          DOCKER_HOST: ""
       - uses: actions/cache@v4
         with:
           path: /root/.cache/pip
@@ -82,8 +76,7 @@ jobs:
   # Миграции на отдельной тестовой БД PostgreSQL внутри DinD
   migrations:
     runs-on: ubuntu-latest
-    container:
-      image: python:3.12.7-bookworm
+    container: python:3.12.7-bookworm
     services:
       docker:
         image: docker:27.3.1-dind
@@ -99,8 +92,6 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
-        env:
-          DOCKER_HOST: ""
       - uses: ./.github/actions/ci-tools
       - name: Prepare .env with the test database password from the secret
         env:
@@ -114,8 +105,7 @@ jobs:
   # Резервное копирование и восстановление на отдельной тестовой БД внутри DinD
   backup:
     runs-on: ubuntu-latest
-    container:
-      image: python:3.12.7-bookworm
+    container: python:3.12.7-bookworm
     services:
       docker:
         image: docker:27.3.1-dind
@@ -131,8 +121,6 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
-        env:
-          DOCKER_HOST: ""
       - uses: ./.github/actions/ci-tools
       - name: Prepare .env with the test database password from the secret
         env:
@@ -146,8 +134,7 @@ jobs:
   # Безопасность: SAST, проверка зависимостей, поиск секретов
   security:
     runs-on: ubuntu-latest
-    container:
-      image: python:3.12.7-bookworm
+    container: python:3.12.7-bookworm
     services:
       docker:
         image: docker:27.3.1-dind
@@ -163,8 +150,6 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
-        env:
-          DOCKER_HOST: ""
         with:
           fetch-depth: 0
       - uses: actions/cache@v4
@@ -198,8 +183,7 @@ jobs:
   # Контейнерная проверка
   container-check:
     runs-on: ubuntu-latest
-    container:
-      image: python:3.12.7-bookworm
+    container: python:3.12.7-bookworm
     services:
       docker:
         image: docker:27.3.1-dind
@@ -215,8 +199,6 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
-        env:
-          DOCKER_HOST: ""
       - uses: ./.github/actions/ci-tools
       - name: Prepare .env with the test database password from the secret
         env:
@@ -233,8 +215,7 @@ jobs:
   build:
     needs: [style, tests, migrations, backup, security, container-check]
     runs-on: ubuntu-latest
-    container:
-      image: python:3.12.7-bookworm
+    container: python:3.12.7-bookworm
     services:
       docker:
         image: docker:27.3.1-dind
@@ -250,8 +231,6 @@ jobs:
       DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
-        env:
-          DOCKER_HOST: ""
       - uses: ./.github/actions/ci-tools
       - name: Image name and tag from commit SHA
         run: |
@@ -285,8 +264,7 @@ jobs:
     needs: [style, tests, migrations, backup, security, container-check, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    container:
-      image: python:3.12.7-bookworm
+    container: python:3.12.7-bookworm
     services:
       docker:
         image: docker:27.3.1-dind
@@ -305,8 +283,6 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
-        env:
-          DOCKER_HOST: ""
       - uses: ./.github/actions/ci-tools
       - uses: actions/download-artifact@v4
         with:
