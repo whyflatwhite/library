@@ -60,8 +60,9 @@ echo "== 3. Безопасность и эксплуатация =="
 uid=$($COMPOSE exec -T api id -u | tr -d '\r')
 [ "$uid" != "0" ] || fail "приложение запущено от root"
 ok "процесс приложения запущен от uid $uid (не root)"
-if $COMPOSE config | grep -A20 '^  db:' | grep -q 'published:'; then
-  fail "порт БД опубликован наружу"
+db_ports=$($COMPOSE port db 5432 2>/dev/null || true)
+if [ -n "$db_ports" ] && [ "$db_ports" != ":0" ]; then
+    fail "порт БД опубликован наружу: $db_ports"
 fi
 ok "порт БД не опубликован"
 for service in db api; do
