@@ -1,5 +1,9 @@
 name: CI
 
+# Все стадии выполняются в контейнере-исполнителе с демоном Docker-in-Docker (DinD):
+# job работает в контейнере, а Docker-демон предоставляет служебный контейнер docker:dind.
+# DOCKER_HOST (tcp://docker:2375) задается только внутри команд, которые используют Docker:
+# на уровне job его нельзя, иначе раннер сам пытается подключиться к docker и шаги падают.
 # Запуск: любой push, pull request в main (в том числе изменение main)
 on:
   push:
@@ -11,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  # Стиль и типы
+  # 1. Стиль и типы - та же команда, что локально
   style:
     runs-on: ubuntu-latest
     container: python:3.12.7-bookworm
@@ -26,8 +30,6 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -39,7 +41,7 @@ jobs:
       - name: Style and types (make lint)
         run: make lint
 
-  # Тесты на изолированной БД в памяти, отчеты тестов и покрытия
+  # 2. Тесты на изолированной БД в памяти, отчеты тестов и покрытия
   tests:
     runs-on: ubuntu-latest
     container: python:3.12.7-bookworm
@@ -54,8 +56,6 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -73,7 +73,7 @@ jobs:
           name: test-reports
           path: reports/
 
-  # Миграции на отдельной тестовой БД PostgreSQL внутри DinD
+  # 3. Миграции на отдельной тестовой БД PostgreSQL внутри DinD
   migrations:
     runs-on: ubuntu-latest
     container: python:3.12.7-bookworm
@@ -88,8 +88,6 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ci-tools
@@ -100,9 +98,11 @@ jobs:
           cp .env.example .env
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${CI_DB_PASSWORD}/; s/^POSTGRES_DB=.*/POSTGRES_DB=library_ci/" .env
       - name: Migrations on a clean database
-        run: bash scripts/ci_db_check.sh migrate
+        run: |
+          export DOCKER_HOST=tcp://docker:2375
+          bash scripts/ci_db_check.sh migrate
 
-  # Резервное копирование и восстановление на отдельной тестовой БД внутри DinD
+  # 4. Резервное копирование и восстановление на отдельной тестовой БД внутри DinD
   backup:
     runs-on: ubuntu-latest
     container: python:3.12.7-bookworm
@@ -117,8 +117,6 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ci-tools
@@ -129,9 +127,11 @@ jobs:
           cp .env.example .env
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${CI_DB_PASSWORD}/; s/^POSTGRES_DB=.*/POSTGRES_DB=library_ci/" .env
       - name: Backup, deletion and restore
-        run: bash scripts/ci_db_check.sh backup
+        run: |
+          export DOCKER_HOST=tcp://docker:2375
+          bash scripts/ci_db_check.sh backup
 
-  # Безопасность: SAST, проверка зависимостей, поиск секретов
+  # 5. Безопасность: SAST, проверка зависимостей, поиск секретов
   security:
     runs-on: ubuntu-latest
     container: python:3.12.7-bookworm
@@ -146,8 +146,6 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
         with:
@@ -180,7 +178,7 @@ jobs:
           name: security-reports
           path: reports/
 
-  # Контейнерная проверка
+  # 6. Контейнерная проверка - та же команда, что на виртуальной машине, но на демоне DinD
   container-check:
     runs-on: ubuntu-latest
     container: python:3.12.7-bookworm
@@ -195,8 +193,6 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ci-tools
@@ -209,9 +205,11 @@ jobs:
       - name: Container check (make container-check)
         env:
           APP_HOST: docker
-        run: make container-check
+        run: |
+          export DOCKER_HOST=tcp://docker:2375
+          make container-check
 
-  # Сборка образа и его анализ
+  # 7. Сборка образа и его анализ; только если прошли ВСЕ обязательные проверки
   build:
     needs: [style, tests, migrations, backup, security, container-check]
     runs-on: ubuntu-latest
@@ -227,8 +225,6 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ci-tools
@@ -237,9 +233,13 @@ jobs:
           echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/library-api" >> "$GITHUB_ENV"
           echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
       - name: Build image
-        run: docker build -t "$IMAGE:$TAG" .
+        run: |
+          export DOCKER_HOST=tcp://docker:2375
+          docker build -t "$IMAGE:$TAG" .
       - name: Save image
-        run: docker save "$IMAGE:$TAG" -o image.tar
+        run: |
+          export DOCKER_HOST=tcp://docker:2375
+          docker save "$IMAGE:$TAG" -o image.tar
       - name: Install trivy
         run: |
           curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.56.2/trivy_0.56.2_Linux-64bit.tar.gz | tar -xz trivy
@@ -259,7 +259,7 @@ jobs:
             trivy-report.json
           retention-days: 1
 
-  # Публикация (только после build и всех проверок и только при изменении main)
+  # 8. Публикация: только после build и всех проверок и только при изменении main
   publish:
     needs: [style, tests, migrations, backup, security, container-check, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -276,8 +276,6 @@ jobs:
           --health-retries 20
         env:
           DOCKER_TLS_CERTDIR: ""
-    env:
-      DOCKER_HOST: tcp://docker:2375
     permissions:
       contents: read
       packages: write
@@ -291,6 +289,7 @@ jobs:
         env:
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          export DOCKER_HOST=tcp://docker:2375
           IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/library-api"
           TAG="sha-${GITHUB_SHA::7}"
           gunzip -c image.tar.gz | docker load
